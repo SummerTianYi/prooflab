@@ -67,6 +67,54 @@ npm run verify
 
 This runs linting, unit tests, TypeScript checks, and a production build.
 
+## Current development status
+
+The first end-to-end vertical slice is complete and verified:
+
+- The SGC/Cora CPU reproduction runs from pinned commit `2c7a2727e82e462d8ef9d6e57f0b08888e16488f`.
+- The published target and measured test accuracy are both `81.00%`, producing a `reproduced` verdict.
+- The runner creates an isolated source checkout, enforces a 90-second timeout, restricts the child-process environment, parses the metric, and writes a structured evidence bundle.
+- The Codex SDK audit has been exercised against the real SGC repository with read-only filesystem access and networking disabled. It returned six source-grounded reproducibility findings.
+- The responsive research workspace, experiment API, audit API, evidence display, and verdict comparison are implemented.
+- `npm run verify` passes with 11 tests across metric evaluation, process timeout behavior, SGC output parsing, and audit score normalization.
+
+The next milestone is **GCN legacy repair**. It should demonstrate the full repair loop: run or inspect the legacy implementation, preserve the initial failure as evidence, have Codex propose a minimal compatibility patch, execute the repaired experiment, and compare the before/after result. The Transformer/WMT14 case remains a feasibility-only audit because an exact reproduction is outside the available compute budget.
+
+## Continue with Codex on another computer
+
+Paste the following prompt into Codex. It is designed to work whether the repository is already open or must be retrieved from GitHub.
+
+```text
+Continue development of ProofLab from its existing Build Week MVP state.
+
+Repository: https://github.com/SummerTianYi/prooflab
+
+If the repository is not already present in the current workspace, clone it and work inside the `prooflab` directory. If it is already present, do not clone another copy. Read README.md and AGENTS.md first, inspect the current Git status and recent commits, and preserve all existing user changes. Do not restart the project or replace the existing architecture.
+
+Current verified state:
+- Next.js 16 + TypeScript application with a research-workspace UI.
+- SGC/Cora is the completed golden path using pinned commit 2c7a2727e82e462d8ef9d6e57f0b08888e16488f.
+- The real CPU reproduction measured 81.00% test accuracy against an 81.00% paper target and produced a `reproduced` verdict.
+- The local runner creates isolated workspaces, limits environment variables, applies a 90-second timeout, captures logs, parses metrics, compares tolerance, and writes report.json evidence bundles.
+- The Codex SDK repository audit works in read-only, no-network mode and returns structured, source-grounded findings.
+- API routes, responsive UI, and 11 automated tests are implemented. `npm run verify` passes.
+- Local generated state under `.prooflab/`, `.prooflab-runtime/`, `node_modules/`, and `.next/` is intentionally not versioned.
+
+Primary next objective:
+Implement the GCN/Cora legacy-repair case as the second ProofLab workflow. The product should show an auditable before/after sequence: identify or reproduce the legacy environment failure, retain the failure logs as evidence, use Codex to generate a minimal compatibility patch, run the repaired CPU experiment, compare the result to the paper claim, and expose the evidence and status in the existing UI. Keep the current evidence types and report contracts unless a backward-compatible extension is necessary.
+
+Execution guidance:
+1. Inspect the existing code, tests, setup scripts, and current Git state before changing anything.
+2. Run `npm install` if dependencies are absent. Run `npm run setup:sgc` only when the SGC research environment is needed.
+3. Run `npm run verify` to establish a baseline.
+4. Research and pin the official GCN paper/repository artifacts before implementing the legacy case. Treat paper claims, repository facts, inferred details, and measured results as separate evidence.
+5. Use the smallest implementation that demonstrates the repair loop. Do not attempt an exact Attention Is All You Need/WMT14 training run; keep that case feasibility-only.
+6. Add tests for new parsing, failure classification, patch metadata, and verdict behavior. Re-run relevant tests and the full verification command.
+7. Update README.md's current status and continuation prompt after the milestone so another Codex session can resume from the new state.
+
+Work autonomously through implementation and verification. Pause only for decisions with material product, legal, credential, deployment, or external-write consequences. At the end, summarize the behavior delivered, evidence produced, tests run, known limitations, and the next shortest milestone. Do not push, publish, or deploy unless I explicitly ask.
+```
+
 ## Current limitations
 
 - The SGC golden path is local and CPU-only; Docker isolation is planned but not yet included.
