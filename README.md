@@ -4,6 +4,16 @@ ProofLab turns a paper, source repository, and dataset into an auditable researc
 
 The Build Week MVP focuses on a fast, reproducible golden path: [Simplifying Graph Convolutional Networks](https://arxiv.org/abs/1902.07153) (SGC) on Cora. It also shows the next two investigation modes: a GCN legacy-repair case and an Attention Is All You Need feasibility audit.
 
+## Hackathon context
+
+ProofLab is being built for the [OpenAI Build Week 2026 Challenge](https://openai.devpost.com/) in the **Developer Tools** track. The challenge asks participants to build a working project with Codex and GPT-5.6. Submissions close on July 21, 2026 at 5:00 PM Pacific Time.
+
+The product idea is an AI research reproduction engine: a researcher supplies a paper, source repository, and dataset, and ProofLab turns them into an executable experiment with a traceable verdict. Its core value is not merely running code. It reconstructs missing implementation details, isolates the experiment, distinguishes claims from measurements, compares the result to the paper, and leaves an evidence trail that another researcher can inspect.
+
+The hackathon judges weigh four criteria equally: technological implementation, product design, potential impact, and quality of the idea. Development decisions should therefore preserve a coherent end-to-end experience, make Codex's contribution concrete and non-trivial, and keep the demo understandable in less than three minutes.
+
+The final Devpost submission must include an English project description, a public YouTube demo under three minutes with audio explaining how Codex and GPT-5.6 were used, a testable repository or project URL, clear setup and testing instructions, and the `/feedback` Session ID from the primary Codex build thread. For a developer tool, judges must also receive supported-platform information and a way to test the project without rebuilding it from scratch. See the [official rules](https://openai.devpost.com/rules) for the authoritative requirements.
+
 ## What it does
 
 - Reproduces the published SGC Cora accuracy claim on CPU from a pinned upstream commit.
@@ -90,6 +100,14 @@ Continue development of ProofLab from its existing Build Week MVP state.
 Repository: https://github.com/SummerTianYi/prooflab
 
 If the repository is not already present in the current workspace, clone it and work inside the `prooflab` directory. If it is already present, do not clone another copy. Read README.md and AGENTS.md first, inspect the current Git status and recent commits, and preserve all existing user changes. Do not restart the project or replace the existing architecture.
+
+Hackathon and product context:
+- This project is an entry for the OpenAI Build Week 2026 Challenge in the Developer Tools track. The submission deadline is July 21, 2026 at 5:00 PM Pacific Time.
+- The required development tools are Codex and GPT-5.6. Their contribution must be visible in the implementation, README, text submission, and demo.
+- ProofLab is an AI research reproduction engine. It turns a paper, code repository, and dataset into a runnable experiment, reconstructs missing details, compares measured results with published claims, and produces an auditable evidence trail.
+- The target user is a researcher or engineer who needs to determine whether a paper result can actually be reproduced, why a reproduction failed, and what evidence supports the conclusion.
+- Judges score technological implementation, design, potential impact, and quality of the idea equally. Optimize for a coherent working product rather than disconnected technical experiments.
+- The final submission needs an English description, a public YouTube demo under three minutes with audio explaining Codex and GPT-5.6 usage, a testable repository or project URL, setup/testing instructions, supported platforms, the primary `/feedback` Codex Session ID, and a judge-friendly way to test without rebuilding from scratch.
 
 Current verified state:
 - Next.js 16 + TypeScript application with a research-workspace UI.
