@@ -5,6 +5,7 @@ import { evaluateMetric } from "./evaluation";
 import {
   GCN_PATCH_SHA256,
   buildGcnPatchMetadata,
+  canonicalizeGcnPatch,
   classifyGcnFailure,
   parseGcnAccuracy,
   redactGcnOutput,
@@ -103,6 +104,14 @@ describe("buildGcnPatchMetadata", () => {
       "does not match its audited content hash",
     );
   });
+
+  it("canonicalizes CRLF before sealing and emitting the patch artifact", async () => {
+    const patch = await readCheckedInPatch();
+    const crlfPatch = patch.replaceAll("\n", "\r\n");
+
+    expect(canonicalizeGcnPatch(crlfPatch)).toBe(patch);
+    expect(buildGcnPatchMetadata(crlfPatch).sha256).toBe(GCN_PATCH_SHA256);
+  });
 });
 
 describe("redactGcnOutput", () => {
@@ -124,6 +133,22 @@ describe("redactGcnOutput", () => {
     expect(redacted).not.toContain("C:\\Users");
     expect(redacted).toContain("<run>\\repository\\gcn\\train.py");
     expect(redacted).toContain("ModuleNotFoundError");
+  });
+
+  it("redacts mixed-case paths from an external Python environment", () => {
+    const pythonRoot = "D:\\Runtime\\GcnVenv";
+    const output = [
+      "d:\\runtime\\gcnvenv\\Scripts\\python.exe train.py --dataset cora",
+      "D:\\RUNTIME\\GCNVENV\\Lib\\site-packages\\tensorflow\\__init__.py",
+    ].join("\n");
+
+    const redacted = redactGcnOutput(output, [
+      { path: pythonRoot, replacement: "<python-env>" },
+    ]);
+
+    expect(redacted).not.toMatch(/runtime|gcnvenv/i);
+    expect(redacted).toContain("<python-env>\\Scripts\\python.exe");
+    expect(redacted).toContain("<python-env>\\Lib\\site-packages");
   });
 });
 
