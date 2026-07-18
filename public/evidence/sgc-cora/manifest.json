@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "studyId": "sgc-cora",
+  "recordedAt": "2026-07-17",
+  "kind": "sanitized_evidence_summary",
+  "liveCompute": false,
+  "scope": "The verified metric and archived audit findings are published. The full original workstation log and timing are unavailable in this checkout.",
+  "files": [
+    {
+      "path": "codex-audit.json",
+      "sha256": "4a01dd465d26b15d5505152ecd7303723151582e463aad201005c3b6a9b43495"
+    },
+    {
+      "path": "report-summary.json",
+      "sha256": "a0c03958c6c370f8964c51fa9b6b43b1f81118ac2792e9570c1e6dae16a0eb7e"
+    },
+    {
+      "path": "verified-output.txt",
+      "sha256": "377021775f7fd10a28c6ffd3f333147c12781cd48cc40af89604454b624c52c8"
+    }
+  ]
+}

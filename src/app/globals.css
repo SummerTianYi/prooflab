@@ -160,6 +160,34 @@ a:focus-visible {
   line-height: 1.45;
 }
 
+.system-status.is-replay .status-dot {
+  background: var(--amber);
+  box-shadow: 0 0 0 4px rgba(225, 162, 59, 0.16);
+}
+
+.preview-banner {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 18px;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--ink);
+  background: rgba(225, 162, 59, 0.13);
+  font-family: var(--font-mono), monospace;
+  font-size: 9px;
+  line-height: 1.5;
+  letter-spacing: 0.04em;
+}
+
+.preview-banner strong {
+  color: var(--brick);
+  letter-spacing: 0.08em;
+}
+
+.preview-banner span {
+  color: var(--ink-muted);
+}
+
 .case-switcher {
   display: flex;
   gap: 8px;
@@ -553,6 +581,26 @@ a:focus-visible {
   background: rgba(251, 250, 245, 0.52);
 }
 
+.evidence-value {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+}
+
+.evidence-value a,
+.artifact-manifest {
+  color: var(--green);
+  font-family: var(--font-mono), monospace;
+  font-size: 8px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.artifact-manifest {
+  display: inline-block;
+  margin: 0 0 10px;
+}
+
 .repair-chain {
   display: grid;
   gap: 8px;
@@ -630,6 +678,46 @@ a:focus-visible {
   font-family: var(--font-editorial), serif;
   font-size: 15px;
   line-height: 1.45;
+}
+
+.audit-findings {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dotted var(--line);
+}
+
+.audit-findings summary {
+  cursor: pointer;
+  color: var(--green);
+  font-family: var(--font-mono), monospace;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.audit-findings ul {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.audit-findings li {
+  padding: 10px;
+  border-left: 2px solid var(--amber);
+  background: rgba(242, 238, 228, 0.72);
+}
+
+.audit-findings li > span {
+  font-family: var(--font-mono), monospace;
+  font-size: 8px;
+  text-transform: uppercase;
+}
+
+.audit-findings li p {
+  margin-top: 6px;
+  font-family: var(--font-sans), sans-serif;
+  font-size: 10px;
 }
 
 .study-queue {
@@ -780,6 +868,7 @@ a:focus-visible {
   .shell { width: min(100% - 24px, 1460px); }
   .topbar { grid-template-columns: 1fr auto; min-height: 66px; }
   .topbar-center { display: none; }
+  .preview-banner { grid-template-columns: 1fr; gap: 4px; }
   .hero { min-height: auto; padding: 56px 0 40px; }
   .hero h1 { font-size: clamp(54px, 17vw, 82px); line-height: 0.84; }
   .hero-copy { font-size: 17px; }

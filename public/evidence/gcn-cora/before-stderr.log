@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "repository/gcn/train.py", line 7, in <module>
+    from gcn.utils import *
+  File "repository/gcn/utils.py", line 5, in <module>
+    from scipy.sparse.linalg.eigen.arpack import eigsh
+ModuleNotFoundError: No module named 'scipy.sparse.linalg.eigen.arpack'; 'scipy.sparse.linalg.eigen' is not a package

@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "studyId": "gcn-cora",
+  "recordedAt": "2026-07-17",
+  "kind": "sanitized_evidence_bundle",
+  "liveCompute": false,
+  "scope": "Sanitized failure, environment, sealed Codex patch, repaired output, and report summary from the verified Windows CPU run.",
+  "files": [
+    {
+      "path": "after-stdout.log",
+      "sha256": "0e1399b4017caa20d2b66845407eb6a19f5f07b760375eacf7a344f0489489d9"
+    },
+    {
+      "path": "before-stderr.log",
+      "sha256": "cc5e29038a0a224c1bf4afdaf447fe3f8ee2fc6ffb31030e6067149446a1389c"
+    },
+    {
+      "path": "environment.json",
+      "sha256": "2f271aeff3a4433fafd54b5cd392bd39156c181ddeb45a471ba29be4d815be41"
+    },
+    {
+      "path": "repair.patch",
+      "sha256": "14dcd94912c5344f2e5787ed09f81fcb410552f59892abca95f7be294b6c6a0b"
+    },
+    {
+      "path": "report-summary.json",
+      "sha256": "e02e76a145a6e398ffba5073428544eee4a7ebf78ca9986a09740c474e9959f8"
+    }
+  ]
+}

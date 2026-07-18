@@ -1,0 +1,17 @@
+{
+  "studyId": "sgc-cora",
+  "status": "reproduced",
+  "repositoryCommit": "2c7a2727e82e462d8ef9d6e57f0b08888e16488f",
+  "evaluation": {
+    "expected": 0.81,
+    "actual": 0.81,
+    "absoluteDelta": 0,
+    "tolerance": 0.02
+  },
+  "recording": {
+    "kind": "sanitized_summary",
+    "recordedAt": "2026-07-17",
+    "originalTiming": "unavailable",
+    "liveCompute": false
+  }
+}

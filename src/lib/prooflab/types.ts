@@ -46,13 +46,21 @@ export interface RunEvidence {
   locator?: string;
 }
 
+export interface SealedReplayMetadata {
+  mode: "sealed_replay";
+  liveCompute: false;
+  recordedAt: string;
+  source: string;
+  manifestUrl: string;
+}
+
 export interface RunReport {
   id: string;
   studyId: string;
   status: ReproductionStatus;
-  startedAt: string;
-  finishedAt: string;
-  durationMs: number;
+  startedAt: string | null;
+  finishedAt: string | null;
+  durationMs: number | null;
   command: string;
   repositoryCommit: string;
   evaluation: MetricEvaluation;
@@ -60,6 +68,7 @@ export interface RunReport {
   stdoutTail: string;
   stderrTail: string;
   artifactDirectory: string;
+  replay?: SealedReplayMetadata;
 }
 
 export type LegacyFailureClassification =
@@ -118,4 +127,5 @@ export interface RepositoryAudit {
   findings: AuditFinding[];
   recommendedActions: string[];
   threadId: string | null;
+  replay?: SealedReplayMetadata;
 }

@@ -1,0 +1,8 @@
+ProofLab sanitized measured-output summary
+Study: SGC / Cora
+Pinned repository commit: 2c7a2727e82e462d8ef9d6e57f0b08888e16488f
+Runtime: CPU
+Test Accuracy: 0.8100
+
+The full original workstation log is not published. This summary preserves the
+verified metric only; original timing is unavailable in the current checkout.

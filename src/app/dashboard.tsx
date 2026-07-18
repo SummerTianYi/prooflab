@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { DeploymentMode } from "@/lib/prooflab/deployment";
 import type {
   LegacyRepairReport,
   RepositoryAudit,
@@ -12,6 +13,7 @@ type RequestState = "idle" | "loading" | "complete" | "error";
 type ExperimentReport = RunReport | LegacyRepairReport;
 
 interface DashboardProps {
+  deploymentMode: DeploymentMode;
   studies: StudyDefinition[];
 }
 
@@ -34,13 +36,23 @@ function statusLabel(status: RunReport["status"]): string {
   return status.replaceAll("_", " ");
 }
 
+function locatorHref(locator?: string): string | null {
+  if (
+    (locator?.startsWith("/") && !locator.startsWith("//")) ||
+    locator?.startsWith("https://")
+  ) {
+    return locator;
+  }
+  return null;
+}
+
 function isLegacyRepairReport(
   report: ExperimentReport | null,
 ): report is LegacyRepairReport {
   return report !== null && "workflow" in report && report.workflow === "legacy_repair";
 }
 
-export default function Dashboard({ studies }: DashboardProps) {
+export default function Dashboard({ deploymentMode, studies }: DashboardProps) {
   const [activeStudyId, setActiveStudyId] = useState(studies[0].id);
   const [runState, setRunState] = useState<RequestState>("idle");
   const [auditState, setAuditState] = useState<RequestState>("idle");
@@ -51,6 +63,7 @@ export default function Dashboard({ studies }: DashboardProps) {
   const report = reports[primary.id] ?? null;
   const repairReport = isLegacyRepairReport(report) ? report : null;
   const isGcn = primary.id === "gcn-cora";
+  const isReplay = deploymentMode === "replay";
   const activeIndex = studies.findIndex((study) => study.id === primary.id);
 
   async function runExperiment() {
@@ -125,13 +138,19 @@ export default function Dashboard({ studies }: DashboardProps) {
         },
         {
           title: "Repository audited",
-          detail: audit ? `${audit.findings.length} findings recorded` : "Awaiting Codex",
+          detail: audit
+            ? `${audit.findings.length} findings recorded`
+            : isReplay
+              ? "Archived Codex audit findings"
+              : "Awaiting Codex",
           complete: Boolean(audit),
         },
         {
           title: "Experiment executed",
           detail: report
-            ? `${report.durationMs} ms / CPU`
+            ? isReplay
+              ? "Verified CPU artifact"
+              : `${report.durationMs} ms / CPU`
             : "Pinned source / isolated workspace",
           complete: Boolean(report),
         },
@@ -152,8 +171,21 @@ export default function Dashboard({ studies }: DashboardProps) {
         <div className="topbar-center">
           Reproducibility workspace / 00{activeIndex + 1}
         </div>
-        <div className="system-status"><span className="status-dot" /> Local runner</div>
+        <div className={`system-status ${isReplay ? "is-replay" : ""}`}>
+          <span className="status-dot" />
+          {isReplay ? "Evidence replay" : "Local runner"}
+        </div>
       </nav>
+
+      {isReplay && (
+        <aside className="preview-banner reveal reveal-1" aria-label="Online preview mode">
+          <strong>ONLINE PREVIEW / SEALED EVIDENCE REPLAY</strong>
+          <span>
+            This public site replays sanitized artifacts from verified CPU runs.
+            It cannot launch Python, clone repositories, or call Codex.
+          </span>
+        </aside>
+      )}
 
       <section className="hero reveal reveal-2" id="top">
         <div>
@@ -230,13 +262,23 @@ export default function Dashboard({ studies }: DashboardProps) {
           <div className="action-row">
             <button className="button button-primary" type="button" onClick={runExperiment} disabled={runState === "loading"}>
               {runState === "loading"
-                ? (isGcn ? "Repair loop running..." : "Running experiment...")
-                : (isGcn ? "Run legacy repair" : "Run reproduction")}
+                ? isReplay
+                  ? "Loading sealed evidence..."
+                  : (isGcn ? "Repair loop running..." : "Running experiment...")
+                : isReplay
+                  ? (isGcn ? "Replay repair evidence" : "Replay verified run")
+                  : (isGcn ? "Run legacy repair" : "Run reproduction")}
               <span aria-hidden="true">-&gt;</span>
             </button>
             {!isGcn && (
               <button className="button button-secondary" type="button" onClick={runAudit} disabled={auditState === "loading"}>
-                {auditState === "loading" ? "Codex is auditing..." : "Audit with Codex"}
+                {auditState === "loading"
+                  ? isReplay
+                    ? "Loading audit evidence..."
+                    : "Codex is auditing..."
+                  : isReplay
+                    ? "Replay Codex audit"
+                    : "Audit with Codex"}
               </button>
             )}
           </div>
@@ -265,13 +307,31 @@ export default function Dashboard({ studies }: DashboardProps) {
               { kind: "paper" as const, label: "Paper claim", value: formatPercent(expected) },
               { kind: "repository" as const, label: "Source pinned", value: primary.repositoryCommit?.slice(0, 12) ?? "pending" },
               { kind: "measured" as const, label: "Runtime evidence", value: "Awaiting run" },
-            ]).map((item) => (
-              <div className="evidence-row" key={`${item.kind}-${item.label}`}>
-                <span className={`evidence-kind kind-${item.kind}`}>{item.kind}</span>
-                <span>{item.label}</span><strong>{item.value}</strong>
-              </div>
-            ))}
+            ]).map((item) => {
+              const href = locatorHref(item.locator);
+              return (
+                <div className="evidence-row" key={`${item.kind}-${item.label}`}>
+                  <span className={`evidence-kind kind-${item.kind}`}>{item.kind}</span>
+                  <span>{item.label}</span>
+                  <span className="evidence-value">
+                    <strong>{item.value}</strong>
+                    {href && <a href={href} target="_blank" rel="noreferrer">Inspect</a>}
+                  </span>
+                </div>
+              );
+            })}
           </div>
+
+          {report?.replay && (
+            <a
+              className="artifact-manifest"
+              href={report.replay.manifestUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Inspect sealed artifact manifest
+            </a>
+          )}
 
           {repairReport && (
             <div className="repair-chain" aria-label="Legacy repair evidence chain">
@@ -302,6 +362,27 @@ export default function Dashboard({ studies }: DashboardProps) {
             <div className="audit-note">
               <div><span>CODEX AUDIT</span><strong>{audit.reproducibilityScore}/100</strong></div>
               <p>{audit.summary}</p>
+              <details className="audit-findings">
+                <summary>View {audit.findings.length} source-grounded findings</summary>
+                <ul>
+                  {audit.findings.map((finding, index) => (
+                    <li key={`${finding.category}-${index}`}>
+                      <span>{finding.category} / {finding.impact}</span>
+                      <p>{finding.evidence}</p>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+              {audit.replay && (
+                <a
+                  className="artifact-manifest"
+                  href={audit.replay.manifestUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Inspect audit evidence manifest
+                </a>
+              )}
             </div>
           )}
         </aside>

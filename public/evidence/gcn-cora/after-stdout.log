@@ -1,0 +1,3 @@
+Epoch: 0200 train_loss= 0.60381 train_acc= 0.93571 val_loss= 1.06281 val_acc= 0.79400
+Optimization Finished!
+Test set results: cost= 1.01652 accuracy= 0.81800

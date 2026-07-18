@@ -62,4 +62,19 @@ describe("replay API routes", () => {
     expect(runners.gcn).not.toHaveBeenCalled();
     expect(runners.audit).not.toHaveBeenCalled();
   });
+
+  it("rejects a cross-site request before local compute can start", async () => {
+    vi.stubEnv("PROOFLAB_DEPLOYMENT_MODE", "local");
+    const response = await runSgc(
+      new Request("http://localhost:3000/api/runs/sgc", {
+        method: "POST",
+        headers: { Origin: "https://attacker.example" },
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    expect(runners.sgc).not.toHaveBeenCalled();
+    expect(runners.gcn).not.toHaveBeenCalled();
+    expect(runners.audit).not.toHaveBeenCalled();
+  });
 });

@@ -73,6 +73,12 @@ For a quick judge check, run the commands above, open the local URL, and press *
 
 The **Audit with Codex** control is optional for basic testing. It requires an authenticated Codex CLI, because ProofLab starts a read-only Codex audit against the cached upstream SGC repository. The runner itself does not receive credentials.
 
+### Online preview (safe replay mode)
+
+Production builds fail closed into `replay` mode. The public Next.js app can display sanitized, sealed evidence from the verified SGC and GCN CPU runs and the previously executed Codex audit, but it cannot start Python, clone a repository, write experiment artifacts, or invoke Codex. Evidence links resolve to read-only files under `/evidence/<study>/`, and each bundle has a SHA-256 manifest. The SGC bundle explicitly records that the original timing and full workstation log are unavailable; it does not invent replacement measurements. The UI labels every replay action so recorded evidence cannot be mistaken for a fresh run. No Python environment, dataset, Codex login, or API key is required for this preview.
+
+Use `GET /api/health` to inspect the active mode. A public preview returns `{"status":"ok","mode":"replay","liveCompute":false}`. Local `npm run dev` remains the live-compute path by default; set `PROOFLAB_DEPLOYMENT_MODE=replay` during development to exercise the hosted behavior locally. `NODE_ENV=production` and `VERCEL=1` both force replay, so setting `PROOFLAB_DEPLOYMENT_MODE=local` cannot enable hosted compute. Live POSTs are reachable on loopback only; browser requests must be same-origin, while direct CLI requests may omit `Origin`. All live endpoints share a process-level single-flight lock to prevent concurrent experiment launches.
+
 ## Evidence model
 
 Every conclusion is labeled as one of four evidence types:
@@ -115,9 +121,10 @@ Two end-to-end workflows are complete and verified:
 - The Codex-authored compatibility patch changes five files at compatibility boundaries only: public SciPy import, `np.bool_`, and TensorFlow `compat.v1`. It preserves model structure, Planetoid split, seed, hyperparameters, and evaluation.
 - The repaired Windows CPU run measured `81.80%`; the absolute delta from the paper target is `0.30` percentage points, producing a `reproduced` verdict.
 - The responsive workspace switches between SGC reproduction and GCN legacy repair and displays the before/patch/after evidence chain.
-- `npm run verify` passes with 30 tests across metric evaluation, timeouts, SGC and GCN parsing, failure classification, Python compatibility, path redaction, sealed patch metadata, verdicts, and audit score normalization.
+- The deployment boundary now supports a judge-facing replay mode with sanitized reports, downloadable SHA-256-sealed evidence, archived audit findings, a health endpoint, defensive response headers, and tests proving that hosted API routes never invoke local runners.
+- `npm run verify` passes with 56 tests across metric evaluation, timeouts, SGC and GCN parsing, failure classification, Python compatibility, path redaction, sealed patch metadata, verdicts, audit normalization, cross-platform replay artifact hashes, deployment mode, loopback-only local execution, cross-chunk single-flight, output tracing, and API isolation.
 
-The next milestone is **judge-ready delivery**: make the two-workflow setup as frictionless as possible, prepare the English Devpost description and a narrated sub-three-minute demo story, record the primary `/feedback` Session ID, and decide whether a checked-in sample evidence bundle is needed for reviewers who cannot install TensorFlow. Transformer/WMT14 remains feasibility-only because an exact reproduction is outside the available compute budget.
+The next research milestone is the first specialized nonconvex-optimization workflow: implement the already specified Wirtinger Flow/Gaussian phase-retrieval benchmark from `docs/research/nonconvex-reproduction-contract.md`, preserving the same claim, source, inferred implementation, measured result, and verdict separation. Judge-ready description, demo, `/feedback` Session ID, and final public URL remain submission work. Transformer/WMT14 stays feasibility-only because an exact reproduction is outside the available compute budget.
 
 ## Continue with Codex on another computer
 
@@ -147,11 +154,12 @@ Current verified state:
 - The repaired Windows CPU run measured 81.80% and produced a `reproduced` verdict. Its evidence bundle contains before/after logs, environment.json, repair.patch with SHA-256 metadata, and report.json.
 - The local runners create isolated workspaces, limit environment variables, apply timeouts, capture logs, parse metrics, compare tolerance, and write structured evidence bundles.
 - The Codex SDK repository audit works in read-only, no-network mode and returns structured, source-grounded findings.
-- API routes, selectable SGC/GCN UI, repair evidence display, and 30 automated tests are implemented. `npm run verify` passes.
+- Production builds are forced into a safe evidence-replay mode. The public routes return sanitized sealed SGC/GCN reports and the archived six-finding audit, expose `/api/health`, and cannot call the local runners.
+- API routes, selectable SGC/GCN UI, repair evidence display, downloadable artifact manifests, and 56 automated tests are implemented. `npm run verify` passes.
 - Local generated state under `.prooflab/`, `.prooflab-runtime/`, `node_modules/`, and `.next/` is intentionally not versioned.
 
 Primary next objective:
-Prepare ProofLab for judging without destabilizing the two completed workflows. Prioritize setup clarity and demo reliability, then draft the English Devpost description and a narrated demo script/storyboard under three minutes. Make Codex and GPT-5.6's development and in-product contributions concrete. Do not publish, upload, or submit anything without explicit authorization.
+Implement the first nonconvex-optimization vertical slice from `docs/research/nonconvex-reproduction-contract.md`: the Gaussian phase-retrieval panel of Wirtinger Flow Figure 2. Start with the smallest deterministic numerical contract and tests, keep the existing SGC/GCN workflows stable, and expose the resulting process through the same evidence model. Do not expand to arbitrary papers or expensive benchmark sweeps.
 
 Execution guidance:
 1. Inspect the existing code, tests, setup scripts, and current Git state before changing anything.
@@ -159,10 +167,10 @@ Execution guidance:
 3. Run `npm run verify` to establish a baseline.
 4. Preserve the completed SGC and GCN report contracts and the paper/repository/inferred/measured evidence distinction.
 5. Keep Attention Is All You Need/WMT14 feasibility-only; do not attempt expensive training.
-6. If adding a sample evidence bundle or demo mode, label it clearly as recorded evidence and keep the live runner path available so it cannot be mistaken for a fresh measurement.
+6. Preserve the production fail-closed replay boundary. Recorded evidence must remain explicitly labeled, while live compute stays available only through local development until a separate authenticated compute service is designed.
 7. Re-run relevant tests and `npm run verify`, then update this status and continuation prompt.
 
-Work autonomously through implementation and verification. Pause only for decisions with material product, legal, credential, deployment, or external-write consequences. At the end, summarize the behavior delivered, evidence produced, tests run, known limitations, and the next shortest milestone. Do not push, publish, or deploy unless I explicitly ask.
+Before each implementation batch, tell the user what will change, its visible effect, risk, verification, and intended commit, then wait for confirmation. Once that batch is authorized, use small atomic commits, push the working branch, and verify GitHub Actions. Never force-push, merge `main`, promote a production deployment, publish, or submit without explicit authorization. At the end, summarize the behavior delivered, evidence produced, tests run, known limitations, and the next shortest milestone.
 ```
 
 ## Current limitations
@@ -172,4 +180,5 @@ Work autonomously through implementation and verification. Pause only for decisi
 - `npm run setup:gcn` downloads a roughly 300 MB TensorFlow runtime on Windows and can take several minutes on first use.
 - The GCN repair applies a sealed Codex-authored patch rather than asking a model to regenerate code on every click; this keeps judge runs deterministic while retaining the generator, rationale, changed files, and patch hash as evidence.
 - The repaired GCN path uses TensorFlow 2.15's `compat.v1` mode. Deprecation warnings remain in stderr by design and are preserved as evidence.
+- The public preview is evidence replay, not remote experiment execution. Fresh CPU jobs and live Codex audits still require the local development environment; a later authenticated compute service such as Cloud Run would be needed for safe hosted execution.
 - Transformer/WMT14 remains a feasibility-only audit; no expensive full training is attempted.

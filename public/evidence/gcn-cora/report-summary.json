@@ -1,0 +1,27 @@
+{
+  "studyId": "gcn-cora",
+  "workflow": "legacy_repair",
+  "status": "reproduced",
+  "repositoryCommit": "39a4089fe72ad9f055ed6fdb9746abdcfebc4d81",
+  "failure": {
+    "classification": "scipy_private_api_removed",
+    "exitCode": 1,
+    "timedOut": false
+  },
+  "patch": {
+    "generator": "OpenAI Codex",
+    "sha256": "14dcd94912c5344f2e5787ed09f81fcb410552f59892abca95f7be294b6c6a0b",
+    "filesChanged": 5
+  },
+  "evaluation": {
+    "expected": 0.815,
+    "actual": 0.818,
+    "absoluteDelta": 0.0030000000000000027,
+    "tolerance": 0.02
+  },
+  "recording": {
+    "kind": "sanitized_artifacts",
+    "recordedAt": "2026-07-17",
+    "liveCompute": false
+  }
+}

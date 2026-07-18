@@ -1,0 +1,42 @@
+{
+  "summary": "Sanitized findings from the verified read-only, no-network Codex audit.",
+  "reproducibilityScore": 58,
+  "findings": [
+    {
+      "category": "environment",
+      "impact": "high",
+      "evidence": "requirements.txt leaves NumPy, SciPy, and scikit-learn unpinned and pins NetworkX 1.11; README.md only requires PyTorch >=1.0.0."
+    },
+    {
+      "category": "data",
+      "impact": "high",
+      "evidence": "utils.py:load_citation opens seven Planetoid objects from data/, but the repository provides no checksum manifest or acquisition metadata."
+    },
+    {
+      "category": "implementation",
+      "impact": "medium",
+      "evidence": "citation.py --tuned loads an opaque pickled weight decay from SGC-tuning/cora.txt; tuning.py does not retain the 60 trial records used to select it."
+    },
+    {
+      "category": "implementation",
+      "impact": "medium",
+      "evidence": "args.py fixes seed 42 and utils.py:set_seed seeds NumPy and PyTorch, but deterministic algorithm settings and runtime versions are not recorded."
+    },
+    {
+      "category": "evaluation",
+      "impact": "low",
+      "evidence": "utils.py:load_citation hard-codes the public split as the training labels, the next 500 validation nodes, and the test index file."
+    },
+    {
+      "category": "evaluation",
+      "impact": "high",
+      "evidence": "citation.py prints one four-decimal test accuracy without repeated seeds, variance, confidence intervals, or a machine-readable result artifact."
+    }
+  ],
+  "threadId": null,
+  "recording": {
+    "kind": "sanitized_findings",
+    "recordedAt": "2026-07-17",
+    "liveCompute": false
+  }
+}
