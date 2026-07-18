@@ -22,6 +22,7 @@ The final Devpost submission must include an English project description, a publ
 - Compares the measured metric to the published claim with an explicit tolerance and returns a verdict.
 - Uses Codex in a read-only, network-disabled audit to identify reproducibility risks in the source repository.
 - Displays source evidence, measured evidence, and audit findings in a judge-friendly workspace.
+- Presents the workflow chrome in nine launch languages while preserving paper titles, source-grounded findings, and raw logs in their evidence language.
 
 ## Quick start
 
@@ -75,6 +76,8 @@ The **Audit with Codex** control is optional for basic testing. It requires an a
 
 ### Online preview (safe replay mode)
 
+The public production site is [https://prooflab-tau.vercel.app](https://prooflab-tau.vercel.app). It supports English, Simplified Chinese, Traditional Chinese, Japanese, Spanish, French, German, Brazilian Portuguese, and Korean. ProofLab starts from the browser's preferred supported language, falls back to English, and remembers an explicit selection in that browser. Language choice changes the product interface only: paper titles, repository evidence, Codex findings, and raw execution logs remain unmodified so the evidence chain is not silently rewritten by translation.
+
 Production builds fail closed into `replay` mode. The public Next.js app can display sanitized, sealed evidence from the verified SGC and GCN CPU runs and the previously executed Codex audit, but it cannot start Python, clone a repository, write experiment artifacts, or invoke Codex. Evidence links resolve to read-only files under `/evidence/<study>/`, and each bundle has a SHA-256 manifest. The SGC bundle explicitly records that the original timing and full workstation log are unavailable; it does not invent replacement measurements. The UI labels every replay action so recorded evidence cannot be mistaken for a fresh run. No Python environment, dataset, Codex login, or API key is required for this preview.
 
 Use `GET /api/health` to inspect the active mode. A public preview returns `{"status":"ok","mode":"replay","liveCompute":false}`. Local `npm run dev` remains the live-compute path by default; set `PROOFLAB_DEPLOYMENT_MODE=replay` during development to exercise the hosted behavior locally. `NODE_ENV=production` and `VERCEL=1` both force replay, so setting `PROOFLAB_DEPLOYMENT_MODE=local` cannot enable hosted compute. Live POSTs are reachable on loopback only; browser requests must be same-origin, while direct CLI requests may omit `Origin`. All live endpoints share a process-level single-flight lock to prevent concurrent experiment launches.
@@ -121,8 +124,9 @@ Two end-to-end workflows are complete and verified:
 - The Codex-authored compatibility patch changes five files at compatibility boundaries only: public SciPy import, `np.bool_`, and TensorFlow `compat.v1`. It preserves model structure, Planetoid split, seed, hyperparameters, and evaluation.
 - The repaired Windows CPU run measured `81.80%`; the absolute delta from the paper target is `0.30` percentage points, producing a `reproduced` verdict.
 - The responsive workspace switches between SGC reproduction and GCN legacy repair and displays the before/patch/after evidence chain.
+- The interface includes an accessible nine-language selector, browser-locale detection, English fallback, and local preference persistence. Evidence payloads remain in their original language.
 - The deployment boundary now supports a judge-facing replay mode with sanitized reports, downloadable SHA-256-sealed evidence, archived audit findings, a health endpoint, defensive response headers, and tests proving that hosted API routes never invoke local runners.
-- `npm run verify` passes with 56 tests across metric evaluation, timeouts, SGC and GCN parsing, failure classification, Python compatibility, path redaction, sealed patch metadata, verdicts, audit normalization, cross-platform replay artifact hashes, deployment mode, loopback-only local execution, cross-chunk single-flight, output tracing, and API isolation.
+- `npm run verify` passes with 72 tests across localization, metric evaluation, timeouts, SGC and GCN parsing, failure classification, Python compatibility, path redaction, sealed patch metadata, verdicts, audit normalization, cross-platform replay artifact hashes, deployment mode, loopback-only local execution, cross-chunk single-flight, output tracing, and API isolation.
 
 The next research milestone is the first specialized nonconvex-optimization workflow: implement the already specified Wirtinger Flow/Gaussian phase-retrieval benchmark from `docs/research/nonconvex-reproduction-contract.md`, preserving the same claim, source, inferred implementation, measured result, and verdict separation. Judge-ready description, demo, `/feedback` Session ID, and final public URL remain submission work. Transformer/WMT14 stays feasibility-only because an exact reproduction is outside the available compute budget.
 
@@ -155,7 +159,8 @@ Current verified state:
 - The local runners create isolated workspaces, limit environment variables, apply timeouts, capture logs, parse metrics, compare tolerance, and write structured evidence bundles.
 - The Codex SDK repository audit works in read-only, no-network mode and returns structured, source-grounded findings.
 - Production builds are forced into a safe evidence-replay mode. The public routes return sanitized sealed SGC/GCN reports and the archived six-finding audit, expose `/api/health`, and cannot call the local runners.
-- API routes, selectable SGC/GCN UI, repair evidence display, downloadable artifact manifests, and 56 automated tests are implemented. `npm run verify` passes.
+- The public production site is https://prooflab-tau.vercel.app. Its interface supports English, Simplified and Traditional Chinese, Japanese, Spanish, French, German, Brazilian Portuguese, and Korean with browser-locale detection and local preference persistence. Evidence payloads remain unmodified.
+- API routes, selectable SGC/GCN UI, repair evidence display, downloadable artifact manifests, and 72 automated tests are implemented. `npm run verify` passes.
 - Local generated state under `.prooflab/`, `.prooflab-runtime/`, `node_modules/`, and `.next/` is intentionally not versioned.
 
 Primary next objective:

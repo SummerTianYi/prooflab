@@ -1,6 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import {
+  DEFAULT_LOCALE,
+  isLocale,
+  localeOptions,
+  LOCALE_STORAGE_KEY,
+  resolvePreferredLocale,
+  translate,
+  type Locale,
+  type MessageKey,
+} from "@/lib/i18n";
 import type { DeploymentMode } from "@/lib/prooflab/deployment";
 import type {
   LegacyRepairReport,
@@ -15,14 +25,18 @@ type ExperimentReport = RunReport | LegacyRepairReport;
 interface DashboardProps {
   deploymentMode: DeploymentMode;
   studies: StudyDefinition[];
+  initialLocale?: Locale;
 }
 
-async function postJson<T>(url: string): Promise<T> {
+async function postJson<T>(
+  url: string,
+  requestFailure: (status: number) => string,
+): Promise<T> {
   const response = await fetch(url, { method: "POST" });
   const payload = (await response.json()) as T & { error?: string };
 
   if (!response.ok) {
-    throw new Error(payload.error ?? `Request failed with ${response.status}.`);
+    throw new Error(payload.error ?? requestFailure(response.status));
   }
 
   return payload;
@@ -32,9 +46,19 @@ function formatPercent(value: number): string {
   return `${(value * 100).toFixed(2)}%`;
 }
 
-function statusLabel(status: RunReport["status"]): string {
-  return status.replaceAll("_", " ");
-}
+const statusMessageKeys: Record<RunReport["status"], MessageKey> = {
+  reproduced: "verdict.reproduced",
+  partially_reproduced: "verdict.inconclusive",
+  not_reproduced: "verdict.notReproduced",
+  blocked: "verdict.inconclusive",
+};
+
+const evidenceMessageKeys = {
+  paper: "evidence.paper",
+  repository: "evidence.repository",
+  inferred: "evidence.inferred",
+  measured: "evidence.measured",
+} as const satisfies Record<string, MessageKey>;
 
 function locatorHref(locator?: string): string | null {
   if (
@@ -52,7 +76,12 @@ function isLegacyRepairReport(
   return report !== null && "workflow" in report && report.workflow === "legacy_repair";
 }
 
-export default function Dashboard({ deploymentMode, studies }: DashboardProps) {
+export default function Dashboard({
+  deploymentMode,
+  studies,
+  initialLocale = DEFAULT_LOCALE,
+}: DashboardProps) {
+  const [locale, setLocale] = useState<Locale>(initialLocale);
   const [activeStudyId, setActiveStudyId] = useState(studies[0].id);
   const [runState, setRunState] = useState<RequestState>("idle");
   const [auditState, setAuditState] = useState<RequestState>("idle");
@@ -65,17 +94,60 @@ export default function Dashboard({ deploymentMode, studies }: DashboardProps) {
   const isGcn = primary.id === "gcn-cora";
   const isReplay = deploymentMode === "replay";
   const activeIndex = studies.findIndex((study) => study.id === primary.id);
+  const t = (
+    key: MessageKey,
+    values: Record<string, string | number> = {},
+  ) => translate(locale, key, values);
+  const localizedStatus = (status: RunReport["status"]) =>
+    t(statusMessageKeys[status]);
+
+  useEffect(() => {
+    let preferredLocale = resolvePreferredLocale(
+      window.navigator.languages.length > 0
+        ? window.navigator.languages
+        : [window.navigator.language],
+    );
+
+    try {
+      const storedLocale = window.localStorage.getItem(LOCALE_STORAGE_KEY);
+      if (isLocale(storedLocale)) preferredLocale = storedLocale;
+    } catch {
+      // Browser privacy settings may disable storage; locale detection still works.
+    }
+
+    const update = window.setTimeout(() => setLocale(preferredLocale), 0);
+    return () => window.clearTimeout(update);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.lang = locale;
+  }, [locale]);
+
+  function selectLocale(nextLocale: string) {
+    if (!isLocale(nextLocale)) return;
+    setLocale(nextLocale);
+    try {
+      window.localStorage.setItem(LOCALE_STORAGE_KEY, nextLocale);
+    } catch {
+      // The selected language remains active for this session without persistence.
+    }
+  }
 
   async function runExperiment() {
     setRunState("loading");
     setError(null);
     try {
       const endpoint = isGcn ? "/api/runs/gcn" : "/api/runs/sgc";
-      const nextReport = await postJson<ExperimentReport>(endpoint);
+      const nextReport = await postJson<ExperimentReport>(
+        endpoint,
+        (status) => t("errors.requestFailed", { status }),
+      );
       setReports((current) => ({ ...current, [primary.id]: nextReport }));
       setRunState("complete");
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Run failed.");
+      setError(
+        requestError instanceof Error ? requestError.message : t("errors.runFailed"),
+      );
       setRunState("error");
     }
   }
@@ -90,11 +162,18 @@ export default function Dashboard({ deploymentMode, studies }: DashboardProps) {
     setAuditState("loading");
     setError(null);
     try {
-      const nextAudit = await postJson<RepositoryAudit>("/api/audits/sgc");
+      const nextAudit = await postJson<RepositoryAudit>(
+        "/api/audits/sgc",
+        (status) => t("errors.requestFailed", { status }),
+      );
       setAudit(nextAudit);
       setAuditState("complete");
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Audit failed.");
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : t("errors.auditFailed"),
+      );
       setAuditState("error");
     }
   }
@@ -104,102 +183,122 @@ export default function Dashboard({ deploymentMode, studies }: DashboardProps) {
   const pipelineSteps = isGcn
     ? [
         {
-          title: "Legacy failure captured",
+          title: t("pipeline.legacyCaptured"),
           detail: repairReport
             ? repairReport.failure.classification
-            : "Pinned source / modern runtime",
+            : t("pipeline.pinnedRuntime"),
           complete: Boolean(repairReport),
         },
         {
-          title: "Codex patch applied",
+          title: t("pipeline.codexApplied"),
           detail: repairReport
-            ? `${repairReport.patch.files.length} compatibility files`
-            : "Minimal audited diff",
+            ? t("pipeline.compatibilityFiles", {
+                count: repairReport.patch.files.length,
+              })
+            : t("pipeline.minimalDiff"),
           complete: Boolean(repairReport),
         },
         {
-          title: "CPU rerun completed",
+          title: t("pipeline.cpuCompleted"),
           detail: repairReport
-            ? `${formatPercent(repairReport.evaluation.actual)} measured`
-            : "Same split, seed, and hyperparameters",
+            ? t("pipeline.measured", {
+                value: formatPercent(repairReport.evaluation.actual),
+              })
+            : t("pipeline.sameConfiguration"),
           complete: Boolean(repairReport),
         },
         {
-          title: "Evidence sealed",
-          detail: repairReport?.artifactDirectory ?? "Before, patch, after, verdict",
+          title: t("pipeline.evidenceSealed"),
+          detail:
+            repairReport?.artifactDirectory ?? t("pipeline.beforeAfterVerdict"),
           complete: Boolean(repairReport),
         },
       ]
     : [
         {
-          title: "Claim extracted",
-          detail: "Metric and tolerance grounded",
+          title: t("pipeline.claimExtracted"),
+          detail: t("pipeline.metricGrounded"),
           complete: true,
         },
         {
-          title: "Repository audited",
+          title: t("pipeline.repositoryAudited"),
           detail: audit
-            ? `${audit.findings.length} findings recorded`
+            ? t("pipeline.findingsRecorded", { count: audit.findings.length })
             : isReplay
-              ? "Archived Codex audit findings"
-              : "Awaiting Codex",
+              ? t("pipeline.archivedAudit")
+              : t("pipeline.awaitingCodex"),
           complete: Boolean(audit),
         },
         {
-          title: "Experiment executed",
+          title: t("pipeline.experimentExecuted"),
           detail: report
             ? isReplay
-              ? "Verified CPU artifact"
-              : `${report.durationMs} ms / CPU`
-            : "Pinned source / isolated workspace",
+              ? t("pipeline.verifiedArtifact")
+              : t("pipeline.durationCpu", { duration: report.durationMs ?? "--" })
+            : t("pipeline.pinnedWorkspace"),
           complete: Boolean(report),
         },
         {
-          title: "Evidence sealed",
-          detail: report?.artifactDirectory ?? "Logs, metric, commit, verdict",
+          title: t("pipeline.evidenceSealed"),
+          detail: report?.artifactDirectory ?? t("pipeline.logsMetricVerdict"),
           complete: Boolean(report),
         },
       ];
 
   return (
     <main className="shell">
-      <nav className="topbar reveal reveal-1" aria-label="Primary navigation">
-        <a className="brand" href="#top" aria-label="ProofLab home">
+      <nav className="topbar reveal reveal-1" aria-label={t("nav.primary")}>
+        <a className="brand" href="#top" aria-label={t("nav.home")}>
           <span className="brand-mark" aria-hidden="true">P</span>
           <span>ProofLab</span>
         </a>
         <div className="topbar-center">
-          Reproducibility workspace / 00{activeIndex + 1}
+          {t("workspace.position", { index: activeIndex + 1 })}
         </div>
-        <div className={`system-status ${isReplay ? "is-replay" : ""}`}>
-          <span className="status-dot" />
-          {isReplay ? "Evidence replay" : "Local runner"}
+        <div className="topbar-actions">
+          <label className="language-control">
+            <span>{t("language.label")}</span>
+            <select
+              aria-label={t("language.label")}
+              value={locale}
+              onChange={(event) => selectLocale(event.currentTarget.value)}
+            >
+              {localeOptions.map((option) => (
+                <option value={option.code} key={option.code}>
+                  {option.nativeLabel}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className={`system-status ${isReplay ? "is-replay" : ""}`}>
+            <span className="status-dot" />
+            {isReplay ? t("system.evidenceReplay") : t("system.localRunner")}
+          </div>
         </div>
       </nav>
 
       {isReplay && (
-        <aside className="preview-banner reveal reveal-1" aria-label="Online preview mode">
-          <strong>ONLINE PREVIEW / SEALED EVIDENCE REPLAY</strong>
-          <span>
-            This public site replays sanitized artifacts from verified CPU runs.
-            It cannot launch Python, clone repositories, or call Codex.
-          </span>
+        <aside
+          className="preview-banner reveal reveal-1"
+          aria-label={t("preview.aria")}
+        >
+          <strong>{t("preview.title")}</strong>
+          <span>{t("preview.description")}</span>
         </aside>
       )}
 
       <section className="hero reveal reveal-2" id="top">
         <div>
-          <p className="eyebrow">Paper claims, put on trial</p>
-          <h1>Claims are cheap.<br /><em>Evidence runs.</em></h1>
+          <p className="eyebrow">{t("hero.eyebrow")}</p>
+          <h1>{t("hero.titleLead")}<br /><em>{t("hero.titleEmphasis")}</em></h1>
         </div>
-        <p className="hero-copy">
-          ProofLab turns papers, repositories, and datasets into auditable
-          reproduction attempts. Every verdict links back to source, code, and
-          measured artifacts.
-        </p>
+        <p className="hero-copy">{t("hero.description")}</p>
       </section>
 
-      <div className="case-switcher reveal reveal-3" aria-label="Select a reproduction dossier">
+      <div
+        className="case-switcher reveal reveal-3"
+        aria-label={t("cases.aria")}
+      >
         {studies.filter((study) => study.readiness === "ready").map((study, index) => (
           <button
             className={study.id === primary.id ? "is-active" : ""}
@@ -211,7 +310,11 @@ export default function Dashboard({ deploymentMode, studies }: DashboardProps) {
           >
             <span>0{index + 1}</span>
             <strong>{study.shortName}</strong>
-            <small>{study.id === "gcn-cora" ? "Legacy repair" : "Golden path"}</small>
+            <small>
+              {study.id === "gcn-cora"
+                ? t("case.legacyRepair")
+                : t("case.goldenPath")}
+            </small>
           </button>
         ))}
       </div>
@@ -220,32 +323,38 @@ export default function Dashboard({ deploymentMode, studies }: DashboardProps) {
         <article className="dossier-card">
           <header className="card-header">
             <div>
-              <span className="folio">ACTIVE DOSSIER 0{activeIndex + 1}</span>
+              <span className="folio">
+                {t("dossier.active", { index: activeIndex + 1 })}
+              </span>
               <h2>{primary.title}</h2>
               <p>{primary.authors} / {primary.venue} {primary.year}</p>
             </div>
-            <span className="mode-badge">{isGcn ? "legacy repair" : `${primary.mode} run`}</span>
+            <span className="mode-badge">
+              {isGcn
+                ? t("mode.legacyRepair")
+                : t("mode.run", { mode: primary.mode })}
+            </span>
           </header>
 
           <div className="claim-grid">
             <div className="claim-main">
-              <span className="field-label">Claim under test</span>
+              <span className="field-label">{t("claim.underTest")}</span>
               <strong>{primary.claim.label}</strong>
               <a href={primary.claim.sourceUrl} target="_blank" rel="noreferrer">
-                {primary.claim.sourceLocator} / Open paper
+                {primary.claim.sourceLocator} / {t("claim.openPaper")}
               </a>
             </div>
             <div className="metric-cell">
-              <span className="field-label">Published</span>
+              <span className="field-label">{t("metric.published")}</span>
               <strong>{formatPercent(expected)}</strong>
             </div>
             <div className="metric-cell observed">
-              <span className="field-label">Observed</span>
+              <span className="field-label">{t("metric.observed")}</span>
               <strong>{actual === undefined ? "--" : formatPercent(actual)}</strong>
             </div>
           </div>
 
-          <div className="pipeline" aria-label="Reproduction pipeline">
+          <div className="pipeline" aria-label={t("pipeline.aria")}>
             {pipelineSteps.map((step, index) => (
               <div
                 className={`pipeline-step ${step.complete ? "is-complete" : ""}`}
@@ -263,22 +372,28 @@ export default function Dashboard({ deploymentMode, studies }: DashboardProps) {
             <button className="button button-primary" type="button" onClick={runExperiment} disabled={runState === "loading"}>
               {runState === "loading"
                 ? isReplay
-                  ? "Loading sealed evidence..."
-                  : (isGcn ? "Repair loop running..." : "Running experiment...")
+                  ? t("actions.loadingEvidence")
+                  : (isGcn
+                      ? t("actions.repairRunning")
+                      : t("actions.experimentRunning"))
                 : isReplay
-                  ? (isGcn ? "Replay repair evidence" : "Replay verified run")
-                  : (isGcn ? "Run legacy repair" : "Run reproduction")}
+                  ? (isGcn
+                      ? t("actions.replayRepair")
+                      : t("actions.replayRun"))
+                  : (isGcn
+                      ? t("actions.runRepair")
+                      : t("actions.runReproduction"))}
               <span aria-hidden="true">-&gt;</span>
             </button>
             {!isGcn && (
               <button className="button button-secondary" type="button" onClick={runAudit} disabled={auditState === "loading"}>
                 {auditState === "loading"
                   ? isReplay
-                    ? "Loading audit evidence..."
-                    : "Codex is auditing..."
+                    ? t("actions.loadingAudit")
+                    : t("actions.codexAuditing")
                   : isReplay
-                    ? "Replay Codex audit"
-                    : "Audit with Codex"}
+                    ? t("actions.replayAudit")
+                    : t("actions.auditCodex")}
               </button>
             )}
           </div>
@@ -286,36 +401,42 @@ export default function Dashboard({ deploymentMode, studies }: DashboardProps) {
 
         <aside className="verdict-card">
           <div className="verdict-heading">
-            <span className="field-label">Verdict</span>
+            <span className="field-label">{t("verdict.label")}</span>
             <span className={`verdict-seal ${report ? "is-stamped" : ""}`}>
-              {report ? statusLabel(report.status) : "pending"}
+              {report ? localizedStatus(report.status) : t("verdict.pending")}
             </span>
           </div>
 
-          <div className="comparison-chart" aria-label="Claim versus observed result">
+          <div className="comparison-chart" aria-label={t("comparison.aria")}>
             <div className="chart-scale"><span>0%</span><span>50%</span><span>100%</span></div>
             <div className="chart-row">
-              <span>Paper</span><div className="bar-track"><div className="bar bar-paper" style={{ width: `${expected * 100}%` }} /></div><strong>{formatPercent(expected)}</strong>
+              <span>{t("comparison.paper")}</span><div className="bar-track"><div className="bar bar-paper" style={{ width: `${expected * 100}%` }} /></div><strong>{formatPercent(expected)}</strong>
             </div>
             <div className="chart-row">
-              <span>Run</span><div className="bar-track"><div className="bar bar-run" style={{ width: `${(actual ?? 0) * 100}%` }} /></div><strong>{actual === undefined ? "--" : formatPercent(actual)}</strong>
+              <span>{t("comparison.run")}</span><div className="bar-track"><div className="bar bar-run" style={{ width: `${(actual ?? 0) * 100}%` }} /></div><strong>{actual === undefined ? "--" : formatPercent(actual)}</strong>
             </div>
           </div>
 
           <div className="evidence-list">
             {(report?.evidence ?? [
-              { kind: "paper" as const, label: "Paper claim", value: formatPercent(expected) },
-              { kind: "repository" as const, label: "Source pinned", value: primary.repositoryCommit?.slice(0, 12) ?? "pending" },
-              { kind: "measured" as const, label: "Runtime evidence", value: "Awaiting run" },
+              { kind: "paper" as const, label: t("evidence.paperClaim"), value: formatPercent(expected) },
+              { kind: "repository" as const, label: t("evidence.sourcePinned"), value: primary.repositoryCommit?.slice(0, 12) ?? t("verdict.pending") },
+              { kind: "measured" as const, label: t("evidence.runtime"), value: t("evidence.awaiting") },
             ]).map((item) => {
               const href = locatorHref(item.locator);
               return (
                 <div className="evidence-row" key={`${item.kind}-${item.label}`}>
-                  <span className={`evidence-kind kind-${item.kind}`}>{item.kind}</span>
+                  <span className={`evidence-kind kind-${item.kind}`}>
+                    {t(evidenceMessageKeys[item.kind])}
+                  </span>
                   <span>{item.label}</span>
                   <span className="evidence-value">
                     <strong>{item.value}</strong>
-                    {href && <a href={href} target="_blank" rel="noreferrer">Inspect</a>}
+                    {href && (
+                      <a href={href} target="_blank" rel="noreferrer">
+                        {t("evidence.inspect")}
+                      </a>
+                    )}
                   </span>
                 </div>
               );
@@ -329,41 +450,51 @@ export default function Dashboard({ deploymentMode, studies }: DashboardProps) {
               target="_blank"
               rel="noreferrer"
             >
-              Inspect sealed artifact manifest
+              {t("evidence.manifest")}
             </a>
           )}
 
           {repairReport && (
-            <div className="repair-chain" aria-label="Legacy repair evidence chain">
+            <div className="repair-chain" aria-label={t("repair.aria")}>
               <div className="repair-stage stage-failure">
-                <span>BEFORE / MEASURED</span>
+                <span>{t("repair.before")}</span>
                 <strong>{repairReport.failure.classification.replaceAll("_", " ")}</strong>
                 <p>{repairReport.failure.summary}</p>
                 <details>
-                  <summary>Original failure log</summary>
+                  <summary>{t("repair.originalLog")}</summary>
                   <pre>{repairReport.failure.stderrTail}</pre>
                 </details>
               </div>
               <div className="repair-stage stage-patch">
-                <span>PATCH / INFERRED BY CODEX</span>
-                <strong>{repairReport.patch.files.length} files changed</strong>
+                <span>{t("repair.patch")}</span>
+                <strong>
+                  {t("repair.filesChanged", {
+                    count: repairReport.patch.files.length,
+                  })}
+                </strong>
                 <p>{repairReport.patch.rationale[2]}</p>
                 <code>sha256 {repairReport.patch.sha256.slice(0, 16)}</code>
               </div>
               <div className="repair-stage stage-after">
-                <span>AFTER / MEASURED</span>
+                <span>{t("repair.after")}</span>
                 <strong>{formatPercent(repairReport.evaluation.actual)}</strong>
-                <p>{statusLabel(repairReport.status)} against the paper claim.</p>
+                <p>
+                  {t("repair.againstClaim", {
+                    status: localizedStatus(repairReport.status),
+                  })}
+                </p>
               </div>
             </div>
           )}
 
           {!isGcn && audit && (
             <div className="audit-note">
-              <div><span>CODEX AUDIT</span><strong>{audit.reproducibilityScore}/100</strong></div>
+              <div><span>{t("audit.title")}</span><strong>{audit.reproducibilityScore}/100</strong></div>
               <p>{audit.summary}</p>
               <details className="audit-findings">
-                <summary>View {audit.findings.length} source-grounded findings</summary>
+                <summary>
+                  {t("audit.viewFindings", { count: audit.findings.length })}
+                </summary>
                 <ul>
                   {audit.findings.map((finding, index) => (
                     <li key={`${finding.category}-${index}`}>
@@ -380,7 +511,7 @@ export default function Dashboard({ deploymentMode, studies }: DashboardProps) {
                   target="_blank"
                   rel="noreferrer"
                 >
-                  Inspect audit evidence manifest
+                  {t("audit.manifest")}
                 </a>
               )}
             </div>
@@ -390,13 +521,17 @@ export default function Dashboard({ deploymentMode, studies }: DashboardProps) {
 
       <section className="study-queue reveal reveal-4">
         <header>
-          <div><span className="folio">RESEARCH QUEUE</span><h2>One dataset. Three levels of proof.</h2></div>
-          <p>The queue deliberately includes a golden path, a legacy repair, and an honest resource constraint.</p>
+          <div><span className="folio">{t("queue.folio")}</span><h2>{t("queue.title")}</h2></div>
+          <p>{t("queue.description")}</p>
         </header>
         <div className="queue-grid">
           {studies.map((study, index) => (
             <article className={`queue-card queue-${study.readiness}`} key={study.id}>
-              <div className="queue-index">0{index + 1}</div><span className="readiness">{study.readiness}</span>
+              <div className="queue-index">0{index + 1}</div><span className="readiness">
+                {study.readiness === "ready"
+                  ? t("readiness.ready")
+                  : t("readiness.blocked")}
+              </span>
               <h3>{study.shortName}</h3><p>{study.note}</p>
               <div className="queue-meta"><span>{study.claim.label}</span><strong>{study.claim.unit === "ratio" ? formatPercent(study.claim.expected) : study.claim.expected.toFixed(1)}</strong></div>
             </article>
@@ -405,7 +540,7 @@ export default function Dashboard({ deploymentMode, studies }: DashboardProps) {
       </section>
 
       <footer className="footer reveal reveal-4">
-        <span>PROOFLAB / BUILD WEEK 2026</span><span>Every conclusion should leave a trail.</span>
+        <span>PROOFLAB / BUILD WEEK 2026</span><span>{t("footer.trail")}</span>
       </footer>
     </main>
   );

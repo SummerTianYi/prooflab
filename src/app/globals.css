@@ -43,7 +43,8 @@ a {
 }
 
 button:focus-visible,
-a:focus-visible {
+a:focus-visible,
+select:focus-visible {
   outline: 3px solid var(--amber);
   outline-offset: 3px;
 }
@@ -95,8 +96,36 @@ a:focus-visible {
   color: var(--ink-muted);
 }
 
-.system-status {
+.topbar-actions {
   justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.language-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-muted);
+}
+
+.language-control select {
+  max-width: 168px;
+  min-height: 34px;
+  padding: 6px 28px 6px 9px;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  background: var(--white);
+  color: var(--ink);
+  font-family: var(--font-sans), sans-serif;
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+}
+
+.system-status {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -868,6 +897,9 @@ a:focus-visible {
   .shell { width: min(100% - 24px, 1460px); }
   .topbar { grid-template-columns: 1fr auto; min-height: 66px; }
   .topbar-center { display: none; }
+  .topbar-actions { gap: 10px; }
+  .language-control > span { display: none; }
+  .language-control select { max-width: 136px; }
   .preview-banner { grid-template-columns: 1fr; gap: 4px; }
   .hero { min-height: auto; padding: 56px 0 40px; }
   .hero h1 { font-size: clamp(54px, 17vw, 82px); line-height: 0.84; }
@@ -889,6 +921,10 @@ a:focus-visible {
   .study-queue > header { grid-template-columns: 1fr; gap: 18px; }
   .queue-grid { grid-template-columns: 1fr; }
   .footer { flex-direction: column; gap: 10px; }
+}
+
+@media (max-width: 480px) {
+  .system-status { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
