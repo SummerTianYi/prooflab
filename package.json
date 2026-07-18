@@ -10,6 +10,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "setup:sgc": "node experiments/setup-sgc.mjs",
+    "setup:gcn": "node experiments/setup-gcn.mjs",
     "verify": "npm run lint && npm run test && npm run typecheck && npm run build"
   },
   "dependencies": {

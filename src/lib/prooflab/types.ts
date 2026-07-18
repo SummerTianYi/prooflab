@@ -62,6 +62,50 @@ export interface RunReport {
   artifactDirectory: string;
 }
 
+export type LegacyFailureClassification =
+  | "unsupported_dependency"
+  | "missing_dependency"
+  | "scipy_private_api_removed"
+  | "tensorflow_api_removed"
+  | "numpy_alias_removed"
+  | "timeout"
+  | "unknown";
+
+export interface LegacyFailureEvidence {
+  classification: LegacyFailureClassification;
+  summary: string;
+  command: string;
+  workingDirectory: string;
+  exitCode: number | null;
+  timedOut: boolean;
+  environment: Record<string, string>;
+  stdoutTail: string;
+  stderrTail: string;
+}
+
+export interface RepairPatchFile {
+  path: string;
+  changes: string[];
+}
+
+export interface RepairPatchMetadata {
+  id: string;
+  generator: "OpenAI Codex";
+  sourceCommit: string;
+  sha256: string;
+  summary: string;
+  rationale: string[];
+  files: RepairPatchFile[];
+  artifact: string;
+}
+
+export interface LegacyRepairReport extends RunReport {
+  workflow: "legacy_repair";
+  failure: LegacyFailureEvidence;
+  patch: RepairPatchMetadata;
+  repairedCommand: string;
+}
+
 export interface AuditFinding {
   category: "environment" | "data" | "implementation" | "evaluation";
   evidence: string;

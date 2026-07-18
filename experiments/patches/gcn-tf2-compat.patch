@@ -1,0 +1,68 @@
+diff --git a/gcn/inits.py b/gcn/inits.py
+index 4a2f1ae..6c31114 100644
+--- a/gcn/inits.py
++++ b/gcn/inits.py
+@@ -1,4 +1,4 @@
+-import tensorflow as tf
++import tensorflow.compat.v1 as tf
+ import numpy as np
+ 
+ 
+diff --git a/gcn/layers.py b/gcn/layers.py
+index f972e2e..170ec06 100644
+--- a/gcn/layers.py
++++ b/gcn/layers.py
+@@ -1,5 +1,5 @@
+ from gcn.inits import *
+-import tensorflow as tf
++import tensorflow.compat.v1 as tf
+ 
+ flags = tf.app.flags
+ FLAGS = flags.FLAGS
+diff --git a/gcn/metrics.py b/gcn/metrics.py
+index 0a60edc..7cfa7cc 100644
+--- a/gcn/metrics.py
++++ b/gcn/metrics.py
+@@ -1,4 +1,4 @@
+-import tensorflow as tf
++import tensorflow.compat.v1 as tf
+ 
+ 
+ def masked_softmax_cross_entropy(preds, labels, mask):
+diff --git a/gcn/train.py b/gcn/train.py
+index 3c9bb2d..023219b 100644
+--- a/gcn/train.py
++++ b/gcn/train.py
+@@ -2,7 +2,9 @@ from __future__ import division
+ from __future__ import print_function
+ 
+ import time
+-import tensorflow as tf
++import tensorflow.compat.v1 as tf
++
++tf.disable_v2_behavior()
+ 
+ from gcn.utils import *
+ from gcn.models import GCN, MLP
+diff --git a/gcn/utils.py b/gcn/utils.py
+index 67f4b96..ce9b2e1 100644
+--- a/gcn/utils.py
++++ b/gcn/utils.py
+@@ -2,7 +2,7 @@ import numpy as np
+ import pickle as pkl
+ import networkx as nx
+ import scipy.sparse as sp
+-from scipy.sparse.linalg.eigen.arpack import eigsh
++from scipy.sparse.linalg import eigsh
+ import sys
+ 
+ 
+@@ -18,7 +18,7 @@ def sample_mask(idx, l):
+     """Create mask."""
+     mask = np.zeros(l)
+     mask[idx] = 1
+-    return np.array(mask, dtype=np.bool)
++    return np.array(mask, dtype=np.bool_)
+ 
+ 
+ def load_data(dataset_str):

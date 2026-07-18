@@ -1,6 +1,7 @@
 import type { StudyDefinition } from "./types";
 
 export const SGC_COMMIT = "2c7a2727e82e462d8ef9d6e57f0b08888e16488f";
+export const GCN_COMMIT = "39a4089fe72ad9f055ed6fdb9746abdcfebc4d81";
 
 export const studies: StudyDefinition[] = [
   {
@@ -33,6 +34,7 @@ export const studies: StudyDefinition[] = [
     venue: "ICLR",
     year: 2017,
     repositoryUrl: "https://github.com/tkipf/gcn",
+    repositoryCommit: GCN_COMMIT,
     claim: {
       metric: "test_accuracy",
       label: "Cora test accuracy",
@@ -43,8 +45,8 @@ export const studies: StudyDefinition[] = [
       sourceLocator: "Table 2",
     },
     mode: "ported",
-    readiness: "queued",
-    note: "Legacy repair case: TensorFlow-era source requires an audited compatibility patch.",
+    readiness: "ready",
+    note: "Legacy repair: preserves the modern-runtime failure, applies a Codex compatibility patch, and reruns on CPU.",
   },
   {
     id: "transformer-wmt14",

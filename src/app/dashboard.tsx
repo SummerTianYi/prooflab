@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import type {
+  LegacyRepairReport,
   RepositoryAudit,
   RunReport,
   StudyDefinition,
 } from "@/lib/prooflab/types";
 
 type RequestState = "idle" | "loading" | "complete" | "error";
+type ExperimentReport = RunReport | LegacyRepairReport;
 
 interface DashboardProps {
   studies: StudyDefinition[];
@@ -32,25 +34,43 @@ function statusLabel(status: RunReport["status"]): string {
   return status.replaceAll("_", " ");
 }
 
+function isLegacyRepairReport(
+  report: ExperimentReport | null,
+): report is LegacyRepairReport {
+  return report !== null && "workflow" in report && report.workflow === "legacy_repair";
+}
+
 export default function Dashboard({ studies }: DashboardProps) {
-  const primary = studies[0];
+  const [activeStudyId, setActiveStudyId] = useState(studies[0].id);
   const [runState, setRunState] = useState<RequestState>("idle");
   const [auditState, setAuditState] = useState<RequestState>("idle");
-  const [report, setReport] = useState<RunReport | null>(null);
+  const [reports, setReports] = useState<Record<string, ExperimentReport>>({});
   const [audit, setAudit] = useState<RepositoryAudit | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const primary = studies.find((study) => study.id === activeStudyId) ?? studies[0];
+  const report = reports[primary.id] ?? null;
+  const repairReport = isLegacyRepairReport(report) ? report : null;
+  const isGcn = primary.id === "gcn-cora";
+  const activeIndex = studies.findIndex((study) => study.id === primary.id);
 
   async function runExperiment() {
     setRunState("loading");
     setError(null);
     try {
-      const nextReport = await postJson<RunReport>("/api/runs/sgc");
-      setReport(nextReport);
+      const endpoint = isGcn ? "/api/runs/gcn" : "/api/runs/sgc";
+      const nextReport = await postJson<ExperimentReport>(endpoint);
+      setReports((current) => ({ ...current, [primary.id]: nextReport }));
       setRunState("complete");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Run failed.");
       setRunState("error");
     }
+  }
+
+  function selectStudy(studyId: string) {
+    setActiveStudyId(studyId);
+    setRunState("idle");
+    setError(null);
   }
 
   async function runAudit() {
@@ -68,6 +88,59 @@ export default function Dashboard({ studies }: DashboardProps) {
 
   const expected = primary.claim.expected;
   const actual = report?.evaluation.actual;
+  const pipelineSteps = isGcn
+    ? [
+        {
+          title: "Legacy failure captured",
+          detail: repairReport
+            ? repairReport.failure.classification
+            : "Pinned source / modern runtime",
+          complete: Boolean(repairReport),
+        },
+        {
+          title: "Codex patch applied",
+          detail: repairReport
+            ? `${repairReport.patch.files.length} compatibility files`
+            : "Minimal audited diff",
+          complete: Boolean(repairReport),
+        },
+        {
+          title: "CPU rerun completed",
+          detail: repairReport
+            ? `${formatPercent(repairReport.evaluation.actual)} measured`
+            : "Same split, seed, and hyperparameters",
+          complete: Boolean(repairReport),
+        },
+        {
+          title: "Evidence sealed",
+          detail: repairReport?.artifactDirectory ?? "Before, patch, after, verdict",
+          complete: Boolean(repairReport),
+        },
+      ]
+    : [
+        {
+          title: "Claim extracted",
+          detail: "Metric and tolerance grounded",
+          complete: true,
+        },
+        {
+          title: "Repository audited",
+          detail: audit ? `${audit.findings.length} findings recorded` : "Awaiting Codex",
+          complete: Boolean(audit),
+        },
+        {
+          title: "Experiment executed",
+          detail: report
+            ? `${report.durationMs} ms / CPU`
+            : "Pinned source / isolated workspace",
+          complete: Boolean(report),
+        },
+        {
+          title: "Evidence sealed",
+          detail: report?.artifactDirectory ?? "Logs, metric, commit, verdict",
+          complete: Boolean(report),
+        },
+      ];
 
   return (
     <main className="shell">
@@ -76,7 +149,9 @@ export default function Dashboard({ studies }: DashboardProps) {
           <span className="brand-mark" aria-hidden="true">P</span>
           <span>ProofLab</span>
         </a>
-        <div className="topbar-center">Reproducibility workspace / 001</div>
+        <div className="topbar-center">
+          Reproducibility workspace / 00{activeIndex + 1}
+        </div>
         <div className="system-status"><span className="status-dot" /> Local runner</div>
       </nav>
 
@@ -92,15 +167,32 @@ export default function Dashboard({ studies }: DashboardProps) {
         </p>
       </section>
 
+      <div className="case-switcher reveal reveal-3" aria-label="Select a reproduction dossier">
+        {studies.filter((study) => study.readiness === "ready").map((study, index) => (
+          <button
+            className={study.id === primary.id ? "is-active" : ""}
+            type="button"
+            onClick={() => selectStudy(study.id)}
+            disabled={runState === "loading"}
+            aria-pressed={study.id === primary.id}
+            key={study.id}
+          >
+            <span>0{index + 1}</span>
+            <strong>{study.shortName}</strong>
+            <small>{study.id === "gcn-cora" ? "Legacy repair" : "Golden path"}</small>
+          </button>
+        ))}
+      </div>
+
       <section className="workspace-grid reveal reveal-3">
         <article className="dossier-card">
           <header className="card-header">
             <div>
-              <span className="folio">ACTIVE DOSSIER 01</span>
+              <span className="folio">ACTIVE DOSSIER 0{activeIndex + 1}</span>
               <h2>{primary.title}</h2>
               <p>{primary.authors} / {primary.venue} {primary.year}</p>
             </div>
-            <span className="mode-badge">{primary.mode} run</span>
+            <span className="mode-badge">{isGcn ? "legacy repair" : `${primary.mode} run`}</span>
           </header>
 
           <div className="claim-grid">
@@ -122,29 +214,31 @@ export default function Dashboard({ studies }: DashboardProps) {
           </div>
 
           <div className="pipeline" aria-label="Reproduction pipeline">
-            <div className="pipeline-step is-complete">
-              <span>01</span><div><strong>Claim extracted</strong><small>Metric and tolerance grounded</small></div>
-            </div>
-            <div className={`pipeline-step ${audit ? "is-complete" : ""}`}>
-              <span>02</span><div><strong>Repository audited</strong><small>{audit ? `${audit.findings.length} findings recorded` : "Awaiting Codex"}</small></div>
-            </div>
-            <div className={`pipeline-step ${report ? "is-complete" : ""}`}>
-              <span>03</span><div><strong>Experiment executed</strong><small>{report ? `${report.durationMs} ms / CPU` : "Pinned source / isolated workspace"}</small></div>
-            </div>
-            <div className={`pipeline-step ${report ? "is-complete" : ""}`}>
-              <span>04</span><div><strong>Evidence sealed</strong><small>{report ? report.artifactDirectory : "Logs, metric, commit, verdict"}</small></div>
-            </div>
+            {pipelineSteps.map((step, index) => (
+              <div
+                className={`pipeline-step ${step.complete ? "is-complete" : ""}`}
+                key={step.title}
+              >
+                <span>0{index + 1}</span>
+                <div><strong>{step.title}</strong><small>{step.detail}</small></div>
+              </div>
+            ))}
           </div>
 
           {error && <div className="error-banner">{error}</div>}
 
           <div className="action-row">
             <button className="button button-primary" type="button" onClick={runExperiment} disabled={runState === "loading"}>
-              {runState === "loading" ? "Running experiment..." : "Run reproduction"}<span aria-hidden="true">-&gt;</span>
+              {runState === "loading"
+                ? (isGcn ? "Repair loop running..." : "Running experiment...")
+                : (isGcn ? "Run legacy repair" : "Run reproduction")}
+              <span aria-hidden="true">-&gt;</span>
             </button>
-            <button className="button button-secondary" type="button" onClick={runAudit} disabled={auditState === "loading"}>
-              {auditState === "loading" ? "Codex is auditing..." : "Audit with Codex"}
-            </button>
+            {!isGcn && (
+              <button className="button button-secondary" type="button" onClick={runAudit} disabled={auditState === "loading"}>
+                {auditState === "loading" ? "Codex is auditing..." : "Audit with Codex"}
+              </button>
+            )}
           </div>
         </article>
 
@@ -168,8 +262,8 @@ export default function Dashboard({ studies }: DashboardProps) {
 
           <div className="evidence-list">
             {(report?.evidence ?? [
-              { kind: "paper" as const, label: "Paper claim", value: "81.0%" },
-              { kind: "repository" as const, label: "Source pinned", value: "2c7a2727e82e" },
+              { kind: "paper" as const, label: "Paper claim", value: formatPercent(expected) },
+              { kind: "repository" as const, label: "Source pinned", value: primary.repositoryCommit?.slice(0, 12) ?? "pending" },
               { kind: "measured" as const, label: "Runtime evidence", value: "Awaiting run" },
             ]).map((item) => (
               <div className="evidence-row" key={`${item.kind}-${item.label}`}>
@@ -179,7 +273,32 @@ export default function Dashboard({ studies }: DashboardProps) {
             ))}
           </div>
 
-          {audit && (
+          {repairReport && (
+            <div className="repair-chain" aria-label="Legacy repair evidence chain">
+              <div className="repair-stage stage-failure">
+                <span>BEFORE / MEASURED</span>
+                <strong>{repairReport.failure.classification.replaceAll("_", " ")}</strong>
+                <p>{repairReport.failure.summary}</p>
+                <details>
+                  <summary>Original failure log</summary>
+                  <pre>{repairReport.failure.stderrTail}</pre>
+                </details>
+              </div>
+              <div className="repair-stage stage-patch">
+                <span>PATCH / INFERRED BY CODEX</span>
+                <strong>{repairReport.patch.files.length} files changed</strong>
+                <p>{repairReport.patch.rationale[2]}</p>
+                <code>sha256 {repairReport.patch.sha256.slice(0, 16)}</code>
+              </div>
+              <div className="repair-stage stage-after">
+                <span>AFTER / MEASURED</span>
+                <strong>{formatPercent(repairReport.evaluation.actual)}</strong>
+                <p>{statusLabel(repairReport.status)} against the paper claim.</p>
+              </div>
+            </div>
+          )}
+
+          {!isGcn && audit && (
             <div className="audit-note">
               <div><span>CODEX AUDIT</span><strong>{audit.reproducibilityScore}/100</strong></div>
               <p>{audit.summary}</p>
