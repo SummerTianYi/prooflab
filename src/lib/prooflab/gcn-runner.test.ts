@@ -1,9 +1,13 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { evaluateMetric } from "./evaluation";
 import {
+  GCN_PATCH_SHA256,
   buildGcnPatchMetadata,
   classifyGcnFailure,
   parseGcnAccuracy,
+  redactGcnOutput,
 } from "./gcn-runner";
 import { GCN_COMMIT } from "./studies";
 
@@ -59,16 +63,15 @@ describe("parseGcnAccuracy", () => {
 });
 
 describe("buildGcnPatchMetadata", () => {
-  const patch = [
-    "diff --git a/gcn/inits.py b/gcn/inits.py",
-    "diff --git a/gcn/layers.py b/gcn/layers.py",
-    "diff --git a/gcn/metrics.py b/gcn/metrics.py",
-    "diff --git a/gcn/train.py b/gcn/train.py",
-    "diff --git a/gcn/utils.py b/gcn/utils.py",
-    "",
-  ].join("\n");
+  async function readCheckedInPatch(): Promise<string> {
+    return readFile(
+      path.join(process.cwd(), "experiments", "patches", "gcn-tf2-compat.patch"),
+      "utf8",
+    );
+  }
 
-  it("seals generator, source, changed files, and a content hash", () => {
+  it("seals the checked-in patch with its pinned canonical hash", async () => {
+    const patch = await readCheckedInPatch();
     const metadata = buildGcnPatchMetadata(patch);
 
     expect(metadata.generator).toBe("OpenAI Codex");
@@ -80,13 +83,47 @@ describe("buildGcnPatchMetadata", () => {
       "gcn/train.py",
       "gcn/utils.py",
     ]);
-    expect(metadata.sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(metadata.sha256).toBe(GCN_PATCH_SHA256);
   });
 
   it("rejects a patch whose file manifest has drifted", () => {
     expect(() =>
       buildGcnPatchMetadata("diff --git a/gcn/train.py b/gcn/train.py\n"),
     ).toThrow("does not match its audited file manifest");
+  });
+
+  it("rejects changed patch content even when the file manifest is unchanged", async () => {
+    const patch = await readCheckedInPatch();
+    const changedPatch = patch.replace(
+      "import tensorflow.compat.v1 as tf",
+      "import tensorflow as tf",
+    );
+
+    expect(() => buildGcnPatchMetadata(changedPatch)).toThrow(
+      "does not match its audited content hash",
+    );
+  });
+});
+
+describe("redactGcnOutput", () => {
+  it("removes host paths while preserving useful traceback context", () => {
+    const runDirectory = "C:\\Users\\alice\\prooflab\\.prooflab\\runs\\123";
+    const homeDirectory = "C:\\Users\\alice";
+    const output = [
+      `File "${runDirectory}\\repository\\gcn\\train.py", line 7`,
+      `${homeDirectory}\\.prooflab-runtime\\gcn-legacy-venv\\Lib\\site-packages`,
+      "ModuleNotFoundError: No module named 'scipy.sparse.linalg.eigen.arpack'",
+    ].join("\n");
+
+    const redacted = redactGcnOutput(output, [
+      { path: runDirectory, replacement: "<run>" },
+      { path: homeDirectory, replacement: "<home>" },
+    ]);
+
+    expect(redacted).not.toContain("alice");
+    expect(redacted).not.toContain("C:\\Users");
+    expect(redacted).toContain("<run>\\repository\\gcn\\train.py");
+    expect(redacted).toContain("ModuleNotFoundError");
   });
 });
 
