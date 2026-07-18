@@ -6,7 +6,10 @@ export async function POST() {
   try {
     return Response.json(await runGcnLegacyRepair());
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown repair failure.";
-    return Response.json({ error: message }, { status: 500 });
+    console.error("GCN legacy repair failed.", error);
+    return Response.json(
+      { error: "GCN legacy repair failed. Inspect server logs and local evidence artifacts." },
+      { status: 500 },
+    );
   }
 }

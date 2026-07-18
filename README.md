@@ -27,7 +27,7 @@ The final Devpost submission must include an English project description, a publ
 
 ### Supported platform
 
-macOS or Linux with Node.js 20+ and Python 3.10+. The SGC and GCN runners are CPU-only. The GCN legacy-repair workflow is also validated on Windows 10 with Python 3.10; the current SGC setup script remains macOS/Linux-only. Docker is not required for this MVP.
+macOS or Linux with Node.js 20+ and Python 3.10+. The SGC and GCN runners are CPU-only. Because TensorFlow 2.15.1 is pinned, GCN specifically requires Python 3.10 or 3.11 and is also validated on Windows 10 with Python 3.10; the current SGC setup script remains macOS/Linux-only. Docker is not required for this MVP.
 
 ### Run locally
 
@@ -47,6 +47,19 @@ npm run dev
 ```
 
 The first setup downloads TensorFlow and can take several minutes. A successful repair run should first preserve the unpatched SciPy compatibility failure, then apply the audited Codex patch and report a repaired accuracy close to `81.80%`.
+
+If GCN setup selects another Python version, point it to Python 3.10 or 3.11 before creating the environment:
+
+```bash
+PROOFLAB_PYTHON=/path/to/python3.11 npm run setup:gcn
+```
+
+On PowerShell:
+
+```powershell
+$env:PROOFLAB_PYTHON='C:\path\to\python.exe'
+npm run setup:gcn
+```
 
 If the default `python3` is older than Python 3.10, select a newer interpreter during setup:
 
@@ -102,7 +115,7 @@ Two end-to-end workflows are complete and verified:
 - The Codex-authored compatibility patch changes five files at compatibility boundaries only: public SciPy import, `np.bool_`, and TensorFlow `compat.v1`. It preserves model structure, Planetoid split, seed, hyperparameters, and evaluation.
 - The repaired Windows CPU run measured `81.80%`; the absolute delta from the paper target is `0.30` percentage points, producing a `reproduced` verdict.
 - The responsive workspace switches between SGC reproduction and GCN legacy repair and displays the before/patch/after evidence chain.
-- `npm run verify` passes with 19 tests across metric evaluation, timeouts, SGC and GCN parsing, failure classification, patch metadata, verdicts, and audit score normalization.
+- `npm run verify` passes with 30 tests across metric evaluation, timeouts, SGC and GCN parsing, failure classification, Python compatibility, path redaction, sealed patch metadata, verdicts, and audit score normalization.
 
 The next milestone is **judge-ready delivery**: make the two-workflow setup as frictionless as possible, prepare the English Devpost description and a narrated sub-three-minute demo story, record the primary `/feedback` Session ID, and decide whether a checked-in sample evidence bundle is needed for reviewers who cannot install TensorFlow. Transformer/WMT14 remains feasibility-only because an exact reproduction is outside the available compute budget.
 
@@ -134,7 +147,7 @@ Current verified state:
 - The repaired Windows CPU run measured 81.80% and produced a `reproduced` verdict. Its evidence bundle contains before/after logs, environment.json, repair.patch with SHA-256 metadata, and report.json.
 - The local runners create isolated workspaces, limit environment variables, apply timeouts, capture logs, parse metrics, compare tolerance, and write structured evidence bundles.
 - The Codex SDK repository audit works in read-only, no-network mode and returns structured, source-grounded findings.
-- API routes, selectable SGC/GCN UI, repair evidence display, and 19 automated tests are implemented. `npm run verify` passes.
+- API routes, selectable SGC/GCN UI, repair evidence display, and 30 automated tests are implemented. `npm run verify` passes.
 - Local generated state under `.prooflab/`, `.prooflab-runtime/`, `node_modules/`, and `.next/` is intentionally not versioned.
 
 Primary next objective:

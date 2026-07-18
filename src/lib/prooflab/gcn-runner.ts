@@ -13,6 +13,8 @@ import type {
 const RUN_TIMEOUT_MS = 90_000;
 const LEGACY_TIMEOUT_MS = 60_000;
 const PATCH_ID = "gcn-tf2-compat-v1";
+export const GCN_PATCH_SHA256 =
+  "14dcd94912c5344f2e5787ed09f81fcb410552f59892abca95f7be294b6c6a0b";
 
 const PATCH_FILES = [
   {
@@ -78,6 +80,41 @@ function tail(value: string, lines = 30): string {
 
 function commandString(executable: string, args: string[]): string {
   return [executable, ...args].join(" ");
+}
+
+interface RedactionPath {
+  path: string;
+  replacement: string;
+}
+
+export function redactGcnOutput(
+  value: string,
+  paths: RedactionPath[],
+): string {
+  const replacements = paths
+    .flatMap(({ path: pathValue, replacement }) => {
+      if (!pathValue) {
+        return [];
+      }
+      return Array.from(
+        new Set([
+          pathValue,
+          pathValue.replaceAll("\\", "/"),
+          pathValue.replaceAll("/", "\\"),
+        ]),
+        (variant) => ({ path: variant, replacement }),
+      );
+    })
+    .sort((left, right) => right.path.length - left.path.length);
+
+  return replacements.reduce(
+    (redacted, entry) =>
+      redacted.replace(
+        new RegExp(entry.path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"),
+        () => entry.replacement,
+      ),
+    value,
+  );
 }
 
 async function assertExists(filePath: string, message: string): Promise<void> {
@@ -164,6 +201,10 @@ export function parseGcnAccuracy(output: string): number {
   return accuracy;
 }
 
+export function canonicalizeGcnPatch(patch: string): string {
+  return patch.replaceAll("\r\n", "\n");
+}
+
 export function buildGcnPatchMetadata(patch: string): RepairPatchMetadata {
   const changedFiles = Array.from(
     patch.matchAll(/^diff --git a\/(.+?) b\/.+$/gm),
@@ -175,11 +216,17 @@ export function buildGcnPatchMetadata(patch: string): RepairPatchMetadata {
     throw new Error("GCN compatibility patch does not match its audited file manifest.");
   }
 
+  const canonicalPatch = canonicalizeGcnPatch(patch);
+  const sha256 = createHash("sha256").update(canonicalPatch).digest("hex");
+  if (sha256 !== GCN_PATCH_SHA256) {
+    throw new Error("GCN compatibility patch does not match its audited content hash.");
+  }
+
   return {
     id: PATCH_ID,
     generator: "OpenAI Codex",
     sourceCommit: GCN_COMMIT,
-    sha256: createHash("sha256").update(patch).digest("hex"),
+    sha256,
     summary:
       "Minimal compatibility repair for the pinned TensorFlow 1.x GCN source on a modern CPU runtime.",
     rationale: [
@@ -265,7 +312,24 @@ export async function runGcnLegacyRepair(): Promise<LegacyRepairReport> {
   const trainingDirectory = path.join(repository, "gcn");
   const startedAt = new Date();
   const args = ["train.py", "--dataset", "cora", "--epochs", "200"];
-  const command = commandString(python, args);
+  const pythonBinDirectory = path.dirname(python);
+  const pythonEnvironmentRoot = ["bin", "scripts"].includes(
+    path.basename(pythonBinDirectory).toLowerCase(),
+  )
+    ? path.dirname(pythonBinDirectory)
+    : pythonBinDirectory;
+  const redactionPaths: RedactionPath[] = [
+    { path: runDirectory, replacement: "<run>" },
+    { path: python, replacement: "<python>" },
+    { path: pythonEnvironmentRoot, replacement: "<python-env>" },
+    { path: projectRoot, replacement: "<project>" },
+    { path: path.dirname(projectRoot), replacement: "<workspace>" },
+    { path: process.env.USERPROFILE ?? "", replacement: "<home>" },
+    { path: process.env.HOME ?? "", replacement: "<home>" },
+  ];
+  const command = redactGcnOutput(commandString(python, args), redactionPaths);
+  const publicTail = (value: string): string =>
+    tail(redactGcnOutput(value, redactionPaths));
 
   await mkdir(runDirectory, { recursive: true });
   const clone = await runProcess(
@@ -322,11 +386,12 @@ export async function runGcnLegacyRepair(): Promise<LegacyRepairReport> {
     );
   }
 
-  const patch = await readFile(patchPath, "utf8");
+  const patch = canonicalizeGcnPatch(await readFile(patchPath, "utf8"));
   const patchMetadata = buildGcnPatchMetadata(patch);
-  await writeFile(path.join(runDirectory, patchMetadata.artifact), patch);
+  const sealedPatchPath = path.join(runDirectory, patchMetadata.artifact);
+  await writeFile(sealedPatchPath, patch);
 
-  const patchCheck = await runProcess("git", ["apply", "--check", patchPath], {
+  const patchCheck = await runProcess("git", ["apply", "--check", sealedPatchPath], {
     cwd: repository,
     timeoutMs: 15_000,
     env: experimentEnvironment(repository),
@@ -335,7 +400,7 @@ export async function runGcnLegacyRepair(): Promise<LegacyRepairReport> {
     throw new Error(`Codex repair patch no longer applies: ${tail(patchCheck.stderr)}`);
   }
 
-  const applyPatch = await runProcess("git", ["apply", patchPath], {
+  const applyPatch = await runProcess("git", ["apply", sealedPatchPath], {
     cwd: repository,
     timeoutMs: 15_000,
     env: experimentEnvironment(repository),
@@ -388,8 +453,8 @@ export async function runGcnLegacyRepair(): Promise<LegacyRepairReport> {
       exitCode: before.exitCode,
       timedOut: before.timedOut,
       environment,
-      stdoutTail: tail(before.stdout),
-      stderrTail: tail(before.stderr),
+      stdoutTail: publicTail(before.stdout),
+      stderrTail: publicTail(before.stderr),
     },
     patch: patchMetadata,
     evidence: [
@@ -430,8 +495,8 @@ export async function runGcnLegacyRepair(): Promise<LegacyRepairReport> {
         locator: "after-stdout.log",
       },
     ],
-    stdoutTail: tail(after.stdout),
-    stderrTail: tail(after.stderr),
+    stdoutTail: publicTail(after.stdout),
+    stderrTail: publicTail(after.stderr),
     artifactDirectory: path.relative(projectRoot, runDirectory),
   };
 
