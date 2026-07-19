@@ -40,6 +40,7 @@ describe("ReplayProcessView", () => {
     expect(html).toContain("逐步查看复现过程");
     expect(html).toContain("第 1 步，共 7 步");
     expect(html).toContain("下一项证据");
-    expect(html).toContain("39a4089fe72ad9f055ed6fdb9746abdcfebc4d81");
+    expect(html).toContain("Cora test accuracy: 81.50%");
+    expect(html).toContain("https://arxiv.org/abs/1609.02907");
   });
 });
