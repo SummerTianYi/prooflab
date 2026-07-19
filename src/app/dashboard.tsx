@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   DEFAULT_LOCALE,
   isLocale,
@@ -12,12 +12,14 @@ import {
   type MessageKey,
 } from "@/lib/i18n";
 import type { DeploymentMode } from "@/lib/prooflab/deployment";
+import { buildReplayProcess } from "@/lib/prooflab/replay-process";
 import type {
   LegacyRepairReport,
   RepositoryAudit,
   RunReport,
   StudyDefinition,
 } from "@/lib/prooflab/types";
+import ReplayProcessView from "./replay-process-view";
 
 type RequestState = "idle" | "loading" | "complete" | "error";
 type ExperimentReport = RunReport | LegacyRepairReport;
@@ -88,8 +90,10 @@ export default function Dashboard({
   const [reports, setReports] = useState<Record<string, ExperimentReport>>({});
   const [audit, setAudit] = useState<RepositoryAudit | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const processViewRef = useRef<HTMLDivElement>(null);
   const primary = studies.find((study) => study.id === activeStudyId) ?? studies[0];
   const report = reports[primary.id] ?? null;
+  const replayProcess = report ? buildReplayProcess(primary, report) : null;
   const repairReport = isLegacyRepairReport(report) ? report : null;
   const isGcn = primary.id === "gcn-cora";
   const isReplay = deploymentMode === "replay";
@@ -144,6 +148,14 @@ export default function Dashboard({
       );
       setReports((current) => ({ ...current, [primary.id]: nextReport }));
       setRunState("complete");
+      window.requestAnimationFrame(() => {
+        processViewRef.current?.scrollIntoView({
+          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+            ? "auto"
+            : "smooth",
+          block: "start",
+        });
+      });
     } catch (requestError) {
       setError(
         requestError instanceof Error ? requestError.message : t("errors.runFailed"),
@@ -518,6 +530,16 @@ export default function Dashboard({
           )}
         </aside>
       </section>
+
+      <div className="process-anchor" ref={processViewRef}>
+        {replayProcess && (
+          <ReplayProcessView
+            key={report?.id}
+            locale={locale}
+            process={replayProcess}
+          />
+        )}
+      </div>
 
       <section className="study-queue reveal reveal-4">
         <header>
